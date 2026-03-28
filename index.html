@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kingen Expert - ScoreZ Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; }
+        .card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 500px; margin-bottom: 15px; box-sizing: border-box; }
+        
+        #setup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .setup-content { background: white; padding: 25px; border-radius: 20px; width: 85%; max-width: 350px; text-align: center; }
+        .setup-input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; box-sizing: border-box; }
+        
+        .game-status { background: #007bff; color: white; padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; }
+        .game-status h2 { margin: 0; font-size: 1em; text-transform: uppercase; }
+        .game-status p { margin: 5px 0 0; font-size: 0.8em; opacity: 0.9; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th, td { padding: 8px 4px; text-align: center; border-bottom: 1px solid #eee; }
+        .total-row td { font-weight: bold; font-size: 1.2em; color: #2c3e50; }
+        .dealer-mark { border: 2px solid #ffc107 !important; background: #fffdf5; border-radius: 8px; }
+
+        .input-area { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 15px 0; }
+        .player-input { display: flex; flex-direction: column; align-items: center; }
+        .player-input label { font-size: 0.7em; font-weight: bold; margin-bottom: 5px; color: #555; }
+        .score-field { width: 100%; padding: 10px 2px; text-align: center; border: 2px solid #eaeeef; border-radius: 8px; font-size: 1.1em; font-weight: bold; }
+
+        .selector-box { display: none; margin: 10px 0; background: #f8f9fa; padding: 10px; border-radius: 10px; border: 1px dashed #ccc; }
+        .selector-title { font-size: 0.75em; font-weight: bold; color: #666; margin-bottom: 8px; text-align: center; }
+        .btn-group { display: flex; gap: 5px; justify-content: center; margin-bottom: 10px; }
+        .btn-pick { flex: 1; padding: 8px 2px; border: 1px solid #007bff; background: white; color: #007bff; border-radius: 6px; font-size: 0.75em; cursor: pointer; font-weight: bold; }
+        .btn-pick.active { background: #007bff; color: white; }
+
+        .bid-section { display: none; background: #fff3cd; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #ffeeba; }
+        
+        .btn-main { width: 100%; padding: 15px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; background: #28a745; color: white; }
+        .btn-finish { background: #6f42c1; margin-top: 10px; }
+        .btn-undo { width: 100%; background: none; border: none; color: #888; font-size: 0.75em; margin-top: 10px; text-decoration: underline; cursor: pointer; }
+
+        .history-table { font-size: 0.75em; width: 100%; margin-top: 10px; color: #666; }
+        .boom-history { font-size: 0.85em; width: 100%; border-top: 2px solid #2c3e50; }
+        .boom-total-row { background: #e9ecef; font-weight: bold; color: #212529; }
+        .error { color: #dc3545; font-size: 0.8em; text-align: center; margin-bottom: 10px; display: none; font-weight: bold; }
+
+        .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; }
+        .btn-small { padding: 8px; font-size: 0.7em; border-radius: 6px; border: 1px solid #ccc; background: white; cursor: pointer; font-weight: bold; color: #666; }
+    </style>
+</head>
+<body onload="init()">
+
+<div id="setup-overlay">
+    <div class="setup-content">
+        <h3>Kingen Scorebord</h3>
+        <input type="text" id="n0" class="setup-input" placeholder="Speler 1">
+        <input type="text" id="n1" class="setup-input" placeholder="Speler 2">
+        <input type="text" id="n2" class="setup-input" placeholder="Speler 3">
+        <input type="text" id="n3" class="setup-input" placeholder="Speler 4">
+        <button class="btn-main" onclick="start()">Start Spel</button>
+        <div style="margin-top: 15px; font-size: 0.8em; color: #666;">
+            Back-up inladen: <input type="file" id="import-file" style="width: 100px;" onchange="importBackup(this)">
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="game-status">
+        <h2 id="g-name">-</h2>
+        <p id="g-desc">-</p>
+    </div>
+
+    <table>
+        <thead><tr id="h-names"><th>-</th><th>-</th><th>-</th><th>-</th></tr></thead>
+        <tr class="total-row" id="totals"><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+    </table>
+
+    <div id="standard-inputs" class="input-area">
+        <div class="player-input"><label class="p-lbl">P1</label><input type="number" class="score-field" id="s0" inputmode="numeric"></div>
+        <div class="player-input"><label class="p-lbl">P2</label><input type="number" class="score-field" id="s1" inputmode="numeric"></div>
+        <div class="player-input"><label class="p-lbl">P3</label><input type="number" class="score-field" id="s2" inputmode="numeric"></div>
+        <div class="player-input"><label class="p-lbl">P4</label><input type="number" class="score-field" id="s3" inputmode="numeric"></div>
+    </div>
+
+    <div id="hartenheer-selector" class="selector-box">
+        <div class="selector-title">WIE HAD DE HARTENHEER?</div>
+        <div class="btn-group" id="hh-group"></div>
+    </div>
+
+    <div id="special-selector" class="selector-box">
+        <div class="selector-title">WIE HAD DE 7DE SLAG? (-2)</div>
+        <div class="btn-group" id="s7-group"></div>
+        <div class="selector-title">WIE HAD DE LAATSTE SLAG? (-3)</div>
+        <div class="btn-group" id="s13-group"></div>
+    </div>
+
+    <div id="bid-ui" class="bid-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 5px;">
+            <label style="font-size: 0.75em; font-weight: bold;">Bieder:</label>
+            <select id="bidder-idx" style="padding:5px; flex:1;"></select>
+            <input type="number" id="bid-val" value="0" style="width: 50px; padding:5px;" placeholder="Bod">
+        </div>
+    </div>
+
+    <div id="err-msg" class="error"></div>
+    <button id="save-btn" class="btn-main" onclick="saveRound()">Ronde Opslaan</button>
+    <button id="finish-boom-btn" class="btn-main btn-finish" style="display:none;" onclick="finishBoom()">Boom Voltooien & Opslaan</button>
+    <button class="btn-undo" onclick="undo()">Herstel laatste ronde</button>
+</div>
+
+<div class="card" style="padding: 10px;">
+    <h3 style="font-size: 0.8em; margin: 0 0 10px 0; color: #444; text-align: center;">GESCHIEDENIS BOMEN</h3>
+    <table class="history-table boom-history" id="boom-hist">
+        <thead><tr id="boom-h-names" style="color: #2c3e50; font-weight: bold;"><th>Type</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th></tr></thead>
+        <tbody id="boom-body"></tbody>
+    </table>
+    
+    <h3 style="font-size: 0.8em; margin: 20px 0 5px 0; color: #444; text-align: center;">HUIDIGE BOOM</h3>
+    <table class="history-table" id="hist"></table>
+    
+    <div class="admin-grid">
+        <button class="btn-small" onclick="downloadBackup()">Back-up Maken</button>
+        <button class="btn-small" onclick="resetCurrentInputs()">Wis Invoer</button>
+        <button class="btn-small" onclick="resetScores()">Nieuwe Boom</button>
+        <button class="btn-small" style="color:#dc3545;" onclick="fullReset()">Alles Wissen</button>
+    </div>
+</div>
+
+<script>
+    const CONFIG = [
+        { n: "Spel 1: Minste Slagen", d: "Slagen invullen (Totaal 13)", val: 1, target: 13, mode: "neg" },
+        { n: "Spel 2: Geen Hartens", d: "Hartens invullen (Totaal 13)", val: 1, target: 13, mode: "neg" },
+        { n: "Spel 3: Geen Heren of Boeren", d: "H/B invullen (Totaal 8)", val: 1, target: 8, mode: "neg" },
+        { n: "Spel 4: Geen Dames", d: "Dames invullen (Totaal 4)", val: 2, target: 4, mode: "neg" },
+        { n: "Spel 5: Geen Hartenheer", d: "Tik op de ongelukkige", mode: "hh" },
+        { n: "Spel 6: De 7de en de laatste", d: "Tik op de spelers", mode: "7last" },
+        { n: "Spel 7: Troef 1", d: "Slagen invullen (Totaal 13)", val: 1, target: 13, mode: "pos" },
+        { n: "Spel 8: Troef 2", d: "Slagen invullen (Totaal 13)", val: 1, target: 13, mode: "pos" },
+        { n: "Spel 9: Troef 3", d: "Slagen invullen (Totaal 13)", val: 1, target: 13, mode: "pos" },
+        { n: "Spel 10: Troef 4", d: "Slagen invullen (Totaal 13)", val: 1, target: 13, mode: "pos" },
+        { n: "Einde van Kingen", d: "Boom voltooid. Sla de stand op.", mode: "end" }
+    ];
+
+    let names = []; 
+    let totals = [0, 0, 0, 0]; 
+    let boomLogs = []; 
+    let roundIdx = 0; 
+    let dealerIdx = 0; 
+    let logs = []; 
+    let selHH = -1, sel7 = -1, sel13 = -1;
+
+    function init() {
+        const savedNames = localStorage.getItem('kingNames');
+        if(savedNames) {
+            const sn = JSON.parse(savedNames);
+            for(let i=0; i<4; i++) document.getElementById('n'+i).value = sn[i];
+        }
+        const savedState = localStorage.getItem('kingGameState');
+        if (savedState) {
+            loadState(JSON.parse(savedState));
+            document.getElementById('setup-overlay').style.display = 'none';
+        }
+    }
+
+    function saveToLocal() {
+        const state = { names, totals, boomLogs, roundIdx, dealerIdx, logs };
+        localStorage.setItem('kingGameState', JSON.stringify(state));
+    }
+
+    function loadState(state) {
+        names = state.names;
+        totals = state.totals;
+        boomLogs = state.boomLogs || [];
+        roundIdx = state.roundIdx;
+        dealerIdx = state.dealerIdx;
+        logs = state.logs;
+        setupSelectors();
+        rebuildHistory();
+        rebuildBoomHistory();
+        refresh();
+    }
+
+    function start() {
+        for(let i=0; i<4; i++) {
+            names[i] = document.getElementById('n'+i).value.trim() || "P"+(i+1);
+        }
+        localStorage.setItem('kingNames', JSON.stringify(names));
+        document.getElementById('setup-overlay').style.display = 'none';
+        setupSelectors();
+        saveToLocal();
+        refresh();
+    }
+
+    function setupSelectors() {
+        const hhG = document.getElementById('hh-group');
+        const s7G = document.getElementById('s7-group');
+        const s13G = document.getElementById('s13-group');
+        const bSel = document.getElementById('bidder-idx');
+        bSel.innerHTML = '<option value="-1">Geen (Gever zelf)</option>';
+        [hhG, s7G, s13G].forEach(g => g.innerHTML = '');
+        names.forEach((name, i) => {
+            hhG.innerHTML += `<button class="btn-pick" onclick="pick('hh', ${i})">${name}</button>`;
+            s7G.innerHTML += `<button class="btn-pick" onclick="pick('7', ${i})">${name}</button>`;
+            s13G.innerHTML += `<button class="btn-pick" onclick="pick('13', ${i})">${name}</button>`;
+            bSel.innerHTML += `<option value="${i}">${name}</option>`;
+            if(i < 4) document.getElementById('boom-h-names').children[i+1].innerText = name;
+        });
+    }
+
+    function pick(type, idx) {
+        if(type === 'hh') { selHH = idx; updateBtnStyle('hh-group', idx); }
+        if(type === '7') { sel7 = idx; updateBtnStyle('s7-group', idx); }
+        if(type === '13') { sel13 = idx; updateBtnStyle('s13-group', idx); }
+    }
+
+    function updateBtnStyle(groupId, activeIdx) {
+        const btns = document.getElementById(groupId).children;
+        for(let i=0; i<4; i++) btns[i].className = (i === activeIdx) ? 'btn-pick active' : 'btn-pick';
+    }
+
+    function refresh() {
+        const c = CONFIG[roundIdx];
+        document.getElementById('g-name').innerText = c.n;
+        document.getElementById('g-desc').innerText = c.d;
+        document.getElementById('err-msg').style.display = "none";
+        document.getElementById('standard-inputs').style.display = (c.mode === 'neg' || c.mode === 'pos') ? 'grid' : 'none';
+        document.getElementById('hartenheer-selector').style.display = (c.mode === 'hh') ? 'block' : 'none';
+        document.getElementById('special-selector').style.display = (c.mode === '7last') ? 'block' : 'none';
+        document.getElementById('bid-ui').style.display = (c.mode === 'pos') ? 'block' : 'none';
+        document.getElementById('save-btn').style.display = (c.mode === 'end') ? 'none' : 'block';
+        document.getElementById('finish-boom-btn').style.display = (c.mode === 'end') ? 'block' : 'none';
+
+        names.forEach((n, i) => {
+            document.getElementById('h-names').children[i].innerText = n;
+            document.getElementById('h-names').children[i].className = (i === dealerIdx) ? 'dealer-mark' : '';
+            document.getElementById('totals').children[i].innerText = totals[i];
+            document.getElementsByClassName('p-lbl')[i].innerText = n;
+        });
+    }
+
+    function saveRound() {
+        const c = CONFIG[roundIdx];
+        let finalScores = [0,0,0,0];
+        if(c.mode === 'hh') {
+            if(selHH === -1) return alert("Wie had de hartenheer?");
+            finalScores[selHH] = -5;
+        } else if(c.mode === '7last') {
+            if(sel7 === -1 || sel13 === -1) return alert("Selecteer beide spelers!");
+            finalScores[sel7] -= 2; finalScores[sel13] -= 3;
+        } else {
+            let inputs = [0,1,2,3].map(i => parseInt(document.getElementById('s'+i).value) || 0);
+            if(inputs.reduce((a,b) => a+b, 0) !== c.target) {
+                document.getElementById('err-msg').innerText = `Som moet ${c.target} zijn!`;
+                document.getElementById('err-msg').style.display = "block";
+                return;
+            }
+            finalScores = inputs.map(v => c.mode === 'neg' ? -(v * c.val) : v);
+        }
+        if(c.mode === "pos") {
+            const bIdx = parseInt(document.getElementById('bidder-idx').value);
+            const bVal = parseInt(document.getElementById('bid-val').value) || 0;
+            if(bIdx !== -1) { finalScores[bIdx] -= bVal; finalScores[dealerIdx] += bVal; }
+        }
+        logs.push({ s: [...finalScores], n: c.n });
+        totals = totals.map((v, i) => v + finalScores[i]);
+        addHistoryRow(c.n, finalScores);
+        roundIdx++; dealerIdx = (dealerIdx + 1) % 4;
+        resetInputsInternal();
+        saveToLocal();
+        refresh();
+    }
+
+    function finishBoom() {
+        if(!confirm("Boom afsluiten en stand toevoegen aan de lijst?")) return;
+        boomLogs.push([...totals]);
+        totals = [0, 0, 0, 0];
+        roundIdx = 0;
+        logs = [];
+        document.getElementById('hist').innerHTML = "";
+        rebuildBoomHistory();
+        saveToLocal();
+        refresh();
+    }
+
+    function rebuildBoomHistory() {
+        const tbody = document.getElementById('boom-body');
+        tbody.innerHTML = "";
+        if (boomLogs.length === 0) return;
+
+        // BEREKEN TOTALEN
+        let grandTotals = [0,0,0,0];
+        boomLogs.forEach(b => b.forEach((val, i) => grandTotals[i] += val));
+
+        // RIJ 1: HET TOTAAL (Vetgedrukt)
+        const totalRow = tbody.insertRow();
+        totalRow.className = "boom-total-row";
+        totalRow.innerHTML = `<td>TOTAAL</td>` + grandTotals.map(s => `<td>${s}</td>`).join('');
+
+        // RIJEN DAARONDER: DE INDIVIDUELE BOMEN
+        boomLogs.forEach((boom, index) => {
+            const row = tbody.insertRow();
+            row.innerHTML = `<td>Boom ${index + 1}</td>` + 
+                            boom.map(s => `<td style="color:${s<0?'#dc3545':'#28a745'}">${s}</td>`).join('');
+        });
+    }
+
+    function addHistoryRow(name, scores) {
+        const row = document.getElementById('hist').insertRow(0);
+        row.innerHTML = `<td style="text-align:left; font-weight:bold;">${name}</td>` + 
+                        scores.map(s => `<td style="color:${s<0?'#dc3545':'#28a745'}">${s>0?'+'+s:s}</td>`).join('');
+    }
+
+    function rebuildHistory() {
+        document.getElementById('hist').innerHTML = "";
+        logs.forEach(log => addHistoryRow(log.n, log.s));
+    }
+
+    function resetInputsInternal() {
+        [0,1,2,3].forEach(i => document.getElementById('s'+i).value = "");
+        selHH = sel7 = sel13 = -1;
+        document.querySelectorAll('.btn-pick').forEach(b => b.classList.remove('active'));
+        document.getElementById('bidder-idx').value = "-1";
+        document.getElementById('bid-val').value = "0";
+    }
+
+    function resetCurrentInputs() { if(confirm("Huidige invoer wissen?")) resetInputsInternal(); }
+
+    function resetScores() {
+        if(confirm("Huidige boom volledig resetten?")) {
+            totals = [0,0,0,0]; roundIdx = 0; logs = [];
+            document.getElementById('hist').innerHTML = "";
+            saveToLocal(); refresh();
+        }
+    }
+
+    function fullReset() {
+        if(confirm("ALLES wissen inclusief geschiedenis en namen?")) {
+            localStorage.clear(); location.reload();
+        }
+    }
+
+    function downloadBackup() {
+        const state = localStorage.getItem('kingGameState');
+        if (!state) return;
+        const blob = new Blob([state], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `kingen_scorez_pro_${new Date().toISOString().slice(0,10)}.txt`;
+        a.click();
+    }
+
+    function importBackup(input) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const state = JSON.parse(e.target.result);
+                loadState(state);
+                saveToLocal();
+                document.getElementById('setup-overlay').style.display = 'none';
+            } catch(err) { alert("Fout bij inladen."); }
+        };
+        reader.readAsText(file);
+    }
+
+    function undo() {
+        if(logs.length === 0) return;
+        const last = logs.pop();
+        totals = totals.map((v, i) => v - last.s[i]);
+        roundIdx--; dealerIdx = (dealerIdx - 1 + 4) % 4;
+        document.getElementById('hist').deleteRow(0);
+        saveToLocal(); refresh();
+    }
+</script>
+</body>
+</html>
